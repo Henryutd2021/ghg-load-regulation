@@ -27,13 +27,13 @@ def pct(region, case):
 
 
 print("1. Window size, reduction in % of attributed emissions")
-rows = [{"region": r, "group": groups.loc[r, "penetration"],
+rows = [{"region": r, "penetration": groups.loc[r, "penetration"],
          **{w: pct(r, base.with_(window=w)) for w in ("month", "quarter", "year")}} for r in regions]
 print(pd.DataFrame(rows).round(3).to_string(index=False), "\n")
 
 print("2. Adjustment range, reduction in %")
 ranges = (0.02, 0.04, 0.06, 0.08, 0.10)
-rows = [{"region": r, "group": groups.loc[r, "diversity"],
+rows = [{"region": r, "diversity": groups.loc[r, "diversity"],
          **{f"±{a:.0%}": pct(r, base.with_(adjustment_limit=a)) for a in ranges}} for r in regions]
 print(pd.DataFrame(rows).round(3).to_string(index=False), "\n")
 
@@ -41,7 +41,7 @@ print("3. Penalty λ (t CO2 per adjusted hour), mean adjusted hours per month")
 lams = (0.0, 1.0, 5.0, 20.0)
 rows = []
 for r in regions:
-    row = {"region": r, "group": groups.loc[r, "fluctuation"]}
+    row = {"region": r, "fluctuation": groups.loc[r, "fluctuation"]}
     for lam in lams:
         res = run(regions[r], base.with_(window="month", lam=lam))
         row[f"λ={lam:g}"] = res.windows["adjusted_hours"].mean()

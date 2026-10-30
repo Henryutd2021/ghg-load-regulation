@@ -1,7 +1,7 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite the article below (preferred citation) and this software."
 title: "GHG load-regulation framework: emission-intensity-informed demand-side load regulation for power-grid regions"
-version: "1.0.0"
+version: "1.0.1"
 repository-code: "https://github.com/Henryutd2021/ghg-load-regulation"
 license: MIT
 authors:

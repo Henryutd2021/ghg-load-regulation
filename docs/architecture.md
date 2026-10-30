@@ -36,24 +36,24 @@ flowchart TD
 
 - A window model has one dimension, `t` (the hours of the window, numbered from 0).
 - `WindowModel.hours` maps them back to positions in the run's arrays.
-- `WindowModel.model` is a plain linopy model: constraints can be added before solving, for example ramping limits on $x_t$.
+- `WindowModel.model` is a plain linopy model: constraints can be added before solving, for example ramping limits on $`x_t`$.
 
 ## Solvers
 
 - **HiGHS** (default, open source, installed with `highspy`): branch and bound for the MILP of each window.
 - **Gurobi** (optional): `pip install gurobipy` plus a licence, then `run(region, case, solver="gurobi")`.
-- Defaults for both: relative MIP gap $10^{-6}$, feasibility and integrality tolerances $10^{-8}$. The objective is the change in emissions plus the penalty (formulation.md, conventions), so the gap applies to that change.
+- Defaults for both: relative MIP gap $`10^{-6}`$, feasibility and integrality tolerances $`10^{-8}`$. The objective is the change in emissions plus the penalty (formulation.md, conventions), so the gap applies to that change.
 - Every solution is verified before it is accepted (`verify_window`; formulation.md, conventions). With `run(..., require_optimal=False)`, a window that is not optimal or fails verification is kept as not solved: its rows are NaN, and so are the run totals except `baseline_t` and `reference_t`.
 - Solver options go in a mapping and override the defaults, for example `run(region, case, options={"time_limit": 60})` for HiGHS or `run(region, case, solver="gurobi", options={"Threads": 4})`.
 
 ## Problem size
 
-For a window of $T$ hours, the model has
+For a window of $`T`$ hours, the model has
 
-- $T$ continuous variables $x_t$ and $T$ binary variables $z_t$;
-- $4T + 1$ constraints with the default $M = a$: Eqs. (4)–(7) for every hour and Eq. (3) once; $6T + 1$ with $M > a$, which adds the linking with $a$ (formulation.md, conventions).
+- $`T`$ continuous variables $`x_t`$ and $`T`$ binary variables $`z_t`$;
+- $`4T + 1`$ constraints with the default $`M = a`$: Eqs. (4)–(7) for every hour and Eq. (3) once; $`6T + 1`$ with $`M > a`$, which adds the linking with $`a`$ (formulation.md, conventions).
 
-A yearly window has 8,760 binaries. With $\lambda = 0$ the binaries do not enter the objective, and HiGHS solves a year in well under a second. With $\lambda > 0$ a window takes from a fraction of a second to a few seconds on a laptop. `examples/strategies.py` (about 60 runs of a synthetic year) takes about a minute.
+A yearly window has 8,760 binaries. With $`\lambda = 0`$ the binaries do not enter the objective, and HiGHS solves a year in well under a second. With $`\lambda > 0`$ a window takes from a fraction of a second to a few seconds on a laptop. `examples/strategies.py` (about 60 runs of a synthetic year) takes about a minute.
 
 ## Output tables
 
@@ -65,16 +65,16 @@ A yearly window has 8,760 binaries. With $\lambda = 0$ the binaries do not enter
 | `windows.csv` | windows | `window`, `hours`, `baseline_t`, `optimized_t`, `reduction_t`, `reduction_pct`, `adjusted_hours`, `indicator_hours`, `added_mwh`, `removed_mwh`, `objective_t`, `solved`, `termination` |
 | `totals.csv` | one | the case settings, then `hours`, `windows`, `windows_solved`, `baseline_t`, `optimized_t`, `reduction_t`, `reduction_pct`, `adjusted_hours`, `indicator_hours`, `added_mwh`, `removed_mwh`, `reference_t`, `all_optimal` |
 
-- `baseline_t`: the case's emissions without regulation ($x_t = 0$).
+- `baseline_t`: the case's emissions without regulation ($`x_t = 0`$).
 - `reduction_t = baseline_t − optimized_t`: the effect of load regulation.
 - `reference_t`: emissions of the unchanged inputs without regulation; it differs from `baseline_t` only when the case scales demand, solar or wind.
-- `indicator_hours` = $\sum_t z_t$ (penalized in Eq. 1); `adjusted_hours` = hours with $\lvert x_t\rvert > 10^{-6}$.
+- `indicator_hours` = $`\sum_t z_t`$ (penalized in Eq. 1); `adjusted_hours` = hours with $`\lvert x_t\rvert > 10^{-6}`$.
 - `reduction_t` can be negative when Eq. (5) forces load up in hours where the baseload exceeds demand.
 
 ## Tests (`tests/`, pytest)
 
 - the data interface: validation errors (order, hourly cadence, missing hours, missing and non-finite values, signs, fuel columns, shapes), the input-directory round trip, refusal of columns with other units, duplicate regions;
-- the model: window labels; optimal solves with Eqs. (3)–(7) recomputed from the solution; objective identity; non-negative reductions when no adjustment is feasible, and a forced increase when baseload exceeds demand; larger windows and wider ranges never reduce less; λ lowers the adjusted hours; zero curtailment share means no regulation; a regression case where an adjustment far below default solver tolerances must still pay the penalty; the solution verification; NaN totals when a window has no solution; the choice of $M$ does not change the optimum; infeasible hours are reported; case validation; the bounds and the intensity rule of `model_data`; user intensities and fuel sets;
+- the model: window labels; optimal solves with Eqs. (3)–(7) recomputed from the solution; objective identity; non-negative reductions when no adjustment is feasible, and a forced increase when baseload exceeds demand; larger windows and wider ranges never reduce less; λ lowers the adjusted hours; zero curtailment share means no regulation; a regression case where an adjustment far below default solver tolerances must still pay the penalty; the solution verification; NaN totals when a window has no solution; the choice of $`M`$ does not change the optimum; infeasible hours are reported; case validation; the bounds and the intensity rule of `model_data`; user intensities and fuel sets;
 - Gurobi and HiGHS agree on a small instance (skipped without gurobipy or a licence);
 - metrics: Eq. (8) on known shares, renewable share, fluctuation statistics, classification;
 - the pipeline: unit conversion, gap filling, completion of missing rows, refusal of repeated or sub-hourly timestamps, recovery of a region from synthetic raw records, refusal of long gaps, period selection;

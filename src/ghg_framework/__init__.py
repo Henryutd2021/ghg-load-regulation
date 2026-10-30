@@ -22,7 +22,7 @@ from .scenarios import WINDOWS, Case, ModelData, feasibility_problems, model_dat
 from .solve import SolveError, run, solve_data, solve_window, verify_window
 from .synthetic import PROFILES, synthetic_inputs, synthetic_raw_records, synthetic_region
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 __all__ = [
     "BASELOAD_FUELS", "REGULATION_BASE_FUELS", "FUELS", "RENEWABLE_FUELS", "RegionData", "make_region",

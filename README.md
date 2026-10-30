@@ -15,8 +15,8 @@ How should demand-side load regulation guided by real-time emission intensity be
 | Aspect | In the article | In this framework |
 |---|---|---|
 | Regions | U.S. grid regions (EIA's regional aggregations of balancing authorities), one calendar year of hourly data | any set of regions, any hourly period |
-| Decision | hourly load adjustment $x_t$, a fraction of demand, within a predefined range | same |
-| Objective | emissions of the optimization cycle plus a penalty $\lambda$ per adjusted hour (Eq. 1) | same |
+| Decision | hourly load adjustment $`x_t`$, a fraction of demand, within a predefined range | same |
+| Objective | emissions of the optimization cycle plus a penalty $`\lambda`$ per adjusted hour (Eq. 1) | same |
 | Constraints | total consumption of the cycle at least at its baseline (Eq. 3); hourly bounds from regulation capacity and unregulatable sources (Eqs. 4–5); indicators of adjusted hours (Eqs. 6–7) | same; each solution is verified against Eqs. (3)–(7) |
 | Optimization cycle | month, quarter or year, each solved separately | also day, week or the whole period |
 | Grid classification | renewable penetration, Shannon–Wiener diversity (Eq. 8), intensity fluctuation | same, with a choice of fluctuation statistic |

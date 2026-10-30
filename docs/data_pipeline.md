@@ -31,9 +31,9 @@ flowchart LR
 | Field | Column in the regional file | Unit in the file | Used for |
 |---|---|---|---|
 | time | `Local time` (or `UTC time`) | – | hour index, windows |
-| demand $d_t$ | `Consumed Electricity` (or `D`, demand) | MWh | Eqs. (2)–(5) |
-| intensity $e_t$ | `CO2 Emissions Intensity for Generated Electricity` | lb CO2/kWh | Eqs. (1)–(2) |
-| net generation by fuel | `NG: COL`, `NG: NG`, `NG: NUC`, `NG: OIL`, `NG: WAT`, `NG: SUN`, `NG: WND`, `NG: OTH` | MWh | $c^{max}_t$, $c^{min}_t$, Eq. (8), penetration |
+| demand $`d_t`$ | `Consumed Electricity` (or `D`, demand) | MWh | Eqs. (2)–(5) |
+| intensity $`e_t`$ | `CO2 Emissions Intensity for Generated Electricity` | lb CO2/kWh | Eqs. (1)–(2) |
+| net generation by fuel | `NG: COL`, `NG: NG`, `NG: NUC`, `NG: OIL`, `NG: WAT`, `NG: SUN`, `NG: WND`, `NG: OTH` | MWh | $`c^{max}_t`$, $`c^{min}_t`$, Eq. (8), penetration |
 
 `preprocess.EIA_COLUMNS` holds this mapping; pass `columns=` to `region_from_records` for another layout or another choice of field.
 
