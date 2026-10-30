@@ -1,0 +1,36 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the article below (preferred citation) and this software."
+title: "GHG load-regulation framework: emission-intensity-informed demand-side load regulation for power-grid regions"
+version: "1.0.0"
+repository-code: "https://github.com/Henryutd2021/ghg-load-regulation"
+license: MIT
+authors:
+  - family-names: Li
+    given-names: Honglin
+    orcid: "https://orcid.org/0000-0002-8405-3032"
+keywords:
+  - demand response
+  - load shifting
+  - carbon intensity
+  - power systems
+  - mixed-integer programming
+preferred-citation:
+  type: article
+  authors:
+    - family-names: Li
+      given-names: Honglin
+      orcid: "https://orcid.org/0000-0002-8405-3032"
+    - family-names: Shen
+      given-names: Gulai
+    - family-names: Senemmar
+      given-names: Soroush
+    - family-names: Mehmani
+      given-names: Ali
+    - family-names: Zhang
+      given-names: Jie
+  title: "Real-time greenhouse gas emission intensity informed demand-side load regulation for power grid decarbonization"
+  journal: "Cell Reports Sustainability"
+  volume: 2
+  start: 100367
+  year: 2025
+  doi: 10.1016/j.crsus.2025.100367
