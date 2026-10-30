@@ -1,17 +1,20 @@
 import numpy as np
 import pytest
 
-from ghg_framework import (Case, ModelOptions, SolveError, build_window_model, constraint_residuals, make_region,
+import pandas as pd
+
+from ghg_framework import (FUELS, Case, ModelOptions, SolveError, build_window_model, constraint_residuals, make_region,
                            model_data, run, scaled_intensity, window_labels)
-from ghg_framework.results import ADJUSTED_TOL
+from ghg_framework.results import collect
+from ghg_framework.solve import WindowSolution
 
 
-def _residuals_ok(result, data, tol=1e-6):
+def _residuals_ok(result, data, tol=1e-7):
     res = constraint_residuals(result, data)
     scale = float(data.demand.max())
     assert res["eq3"] <= tol * scale * len(data.demand)
     assert res["eq4"] <= tol * scale and res["eq5"] <= tol * scale
-    assert res["range"] <= 1e-9 and res["eq6_7"] <= ADJUSTED_TOL
+    assert res["range"] <= 1e-9 and res["eq6_7"] <= tol
 
 
 def test_window_labels(spring):
@@ -31,15 +34,68 @@ def test_solve_optimal_and_constraints_hold(week):
     _residuals_ok(result, data)
     w = result.windows
     np.testing.assert_allclose(w["reduction_t"], w["baseline_t"] - w["optimized_t"])
-    np.testing.assert_allclose(w["objective_t"], -w["reduction_t"] + case.lam * w["adjusted_hours"], atol=1e-6)
+    np.testing.assert_allclose(w["objective_t"], -w["reduction_t"] + case.lam * w["indicator_hours"], atol=1e-6)
+    assert (w["indicator_hours"] == w["adjusted_hours"]).all()
     h = result.hourly
     np.testing.assert_allclose(h["emissions_t"].sum(), result.totals["optimized_t"])
     assert (w["added_mwh"] >= w["removed_mwh"] - 1e-6).all()          # Eq. 3: consumption not reduced
 
 
-def test_reduction_is_never_negative(week):
+def test_reduction_is_never_negative_when_no_adjustment_is_feasible(week):
+    # x = 0 is feasible in every hour of this fixture (baseload below demand), so the optimum cannot
+    # increase emissions; with baseload above demand Eq. 5 can force an increase (see the next test).
+    assert np.all(model_data(week).c_min <= week.demand)
     for lam in (0.0, 5.0, 1e6):
         assert run(week, Case(window="day", lam=lam)).totals["reduction_t"] >= -1e-6
+
+
+def test_baseload_above_demand_forces_an_increase():
+    time = pd.date_range("2025-01-01", periods=4, freq="h")
+    gen = {f: np.zeros(4) for f in FUELS}
+    gen["nuclear"] = np.full(4, 101.0)
+    gen["wind"] = np.full(4, 50.0)
+    r = make_region("base", time, np.full(4, 100.0), np.full(4, 300.0), gen)
+    result = run(r, Case(window="all"))
+    np.testing.assert_allclose(result.hourly["x"], 0.01, atol=1e-9)        # Eq. 5: (1 + x) 100 >= 101
+    assert result.totals["reduction_t"] < 0
+
+
+def test_tiny_adjustments_pay_the_penalty():
+    """Regression: an adjustment far below the solver's default tolerances must not escape Eqs. 6-7."""
+    time = pd.date_range("2025-01-01", periods=2, freq="h")
+    gen = {f: np.zeros(2) for f in FUELS}
+    gen["gas"] = np.full(2, 1e5)
+    r = make_region("tiny", time, np.full(2, 1e5), np.array([0.0, 1000.0]), gen)
+    case = Case(window="all", curtailment_share=5e-7, lam=10.0)        # c_max = 0.05 MWh: x <= 5e-7
+    result = run(r, case)
+    # shifting 0.05 MWh saves 0.05 t but costs 2 x 10 t of penalty: the optimum is no adjustment
+    np.testing.assert_allclose(result.hourly["x"], 0.0, atol=1e-12)
+    assert result.totals["indicator_hours"] == 0 and result.totals["reduction_t"] == pytest.approx(0.0, abs=1e-9)
+    _residuals_ok(result, model_data(r, case))
+    cheap = run(r, case.with_(lam=0.001))                                   # now the shift pays off
+    assert cheap.totals["indicator_hours"] == 2
+    assert cheap.totals["reduction_t"] == pytest.approx(0.05, rel=1e-6)
+
+
+def test_missing_window_makes_totals_unavailable(week):
+    data = model_data(week, Case(window="day"))
+    labels = data.windows
+    sols = []
+    for i, label in enumerate(labels):
+        hours = np.flatnonzero(data.window == label)
+        nan = np.full(hours.size, np.nan)
+        zero = np.zeros(hours.size)
+        sols.append(WindowSolution(label, hours, nan if i == 3 else zero, nan if i == 3 else zero,
+                                   float("nan") if i == 3 else 0.0, "time_limit" if i == 3 else "optimal"))
+    result = collect(data, sols)
+    t = result.totals
+    assert t["windows_solved"] == 6 and not t["all_optimal"]
+    for key in ("optimized_t", "reduction_t", "reduction_pct", "adjusted_hours", "added_mwh"):
+        assert np.isnan(t[key])
+    assert np.isfinite(t["baseline_t"])
+    assert not result.windows.loc[3, "solved"] and np.isnan(result.windows.loc[3, "reduction_t"])
+    with pytest.raises(ValueError, match="without a solution"):
+        constraint_residuals(result, data)
 
 
 def test_larger_windows_reduce_at_least_as_much(spring):
@@ -86,8 +142,11 @@ def test_model_data_bounds_and_scaling(week):
     case = Case(curtailment_share=0.2, solar_scale=1.5, wind_scale=0.5, demand_scale=1.1)
     data = model_data(week, case)
     solar, wind = week.generation["solar"].to_numpy(), week.generation["wind"].to_numpy()
+    total = week.generation.sum(axis=1).to_numpy()
+    np.testing.assert_allclose(data.c_max, 0.2 * (total + 0.5 * solar - 0.5 * wind))   # default: total generation
     hydro = week.generation["hydro"].to_numpy()
-    np.testing.assert_allclose(data.c_max, 0.2 * (1.5 * solar + 0.5 * wind + hydro))
+    renewable = model_data(week, case.with_(regulation_base_fuels=("hydro", "solar", "wind")))
+    np.testing.assert_allclose(renewable.c_max, 0.2 * (1.5 * solar + 0.5 * wind + hydro))
     np.testing.assert_allclose(data.c_min, week.generation[["coal", "nuclear"]].sum(axis=1))
     np.testing.assert_allclose(data.demand, 1.1 * week.demand)
     added = 0.5 * solar - 0.5 * wind
@@ -103,7 +162,7 @@ def test_scaled_intensity_rule():
 
 def test_user_intensity_and_fuel_sets(week):
     flat = np.full(week.hours, 300.0)
-    data = model_data(week, Case(curtailable_fuels=("solar", "wind"), baseload_fuels=("nuclear",)), intensity=flat)
+    data = model_data(week, Case(regulation_base_fuels=("solar", "wind"), baseload_fuels=("nuclear",)), intensity=flat)
     np.testing.assert_allclose(data.intensity, flat)
     np.testing.assert_allclose(data.c_min, week.generation["nuclear"])
     result = run(week, Case(window="day"), intensity=flat)
@@ -111,8 +170,9 @@ def test_user_intensity_and_fuel_sets(week):
 
 
 @pytest.mark.parametrize("bad", [dict(window="fortnight"), dict(adjustment_limit=0.0), dict(adjustment_limit=1.5),
-                                 dict(lam=-1.0), dict(curtailment_share=float("nan")), dict(demand_scale=0.0),
-                                 dict(baseload_fuels=("coal", "peat"))])
+                                 dict(lam=-1.0), dict(curtailment_share=float("nan")), dict(curtailment_share=1.5),
+                                 dict(demand_scale=0.0), dict(baseload_fuels=("coal", "peat")),
+                                 dict(regulation_base_fuels=("solar", "solar"))])
 def test_case_validation(bad):
     with pytest.raises(ValueError):
         Case(**bad)
@@ -130,3 +190,18 @@ def test_gurobi_matches_highs(week):
     b = run(small, case, solver="gurobi").totals
     assert a["reduction_t"] == pytest.approx(b["reduction_t"], rel=1e-5)
     assert a["adjusted_hours"] == b["adjusted_hours"]
+
+
+def test_verification_rejects_indicator_and_constraint_violations(week):
+    from ghg_framework import verify_window
+    case = Case(window="all", lam=2.0)
+    wm = build_window_model(model_data(week, case), "all")
+    n = wm.hours.size
+    zero = np.zeros(n)
+    assert verify_window(wm, zero, zero, 0.0) == []
+    x = zero.copy()
+    x[0] = 1e-5                                                     # adjusted, but z = 0
+    assert any("Eqs. 6-7" in p for p in verify_window(wm, x, zero, 0.0))
+    assert any("integral" in p for p in verify_window(wm, zero, np.full(n, 0.4), 0.0))
+    assert any("range" in p for p in verify_window(wm, np.full(n, 0.06), np.ones(n), 0.0))
+    assert any("objective" in p for p in verify_window(wm, zero, zero, 123.0))

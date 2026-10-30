@@ -41,5 +41,7 @@ def test_metrics_table_and_classification():
     assert set(groups.columns) == {"penetration", "diversity", "fluctuation"}
     for col in groups:
         assert (groups[col] == "high").sum() == 2                      # median split of four regions
+    expected = (m["intensity_range"] > m["intensity_range"].median()).map({True: "high", False: "low"})
+    assert (groups["fluctuation"] == expected).all()                   # default statistic: range
     with pytest.raises(ValueError):
         classify(m, "kurtosis")

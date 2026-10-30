@@ -16,7 +16,7 @@ import pandas as pd
 
 from .inputs import FUELS, RENEWABLE_FUELS, RegionData
 
-FLUCTUATION_STATS = ("iqr", "std", "range", "p90_p10")
+FLUCTUATION_STATS = ("range", "iqr", "std", "p90_p10")
 
 
 def fuel_shares(region: RegionData, fuels: Iterable[str] = FUELS) -> pd.Series:
@@ -42,7 +42,7 @@ def diversity_index(region: RegionData, fuels: Iterable[str] = FUELS) -> float:
 
 
 def intensity_fluctuation(region: RegionData) -> dict:
-    """Spread of the hourly intensity (kg CO2/MWh): interquartile range, standard deviation, range, p90-p10."""
+    """Spread of the hourly intensity (kg CO2/MWh): range (max - min), interquartile range, standard deviation, p90-p10."""
     e = region.intensity
     q10, q25, q75, q90 = np.percentile(e, [10, 25, 75, 90])
     return {"iqr": float(q75 - q25), "std": float(np.std(e)), "range": float(np.max(e) - np.min(e)),
@@ -70,8 +70,12 @@ def split_high_low(values: pd.Series, threshold: Optional[float] = None) -> pd.S
     return pd.Series(np.where(values > threshold, "high", "low"), index=values.index, name=f"{values.name}_group")
 
 
-def classify(metrics: pd.DataFrame, fluctuation_stat: str = "iqr") -> pd.DataFrame:
-    """The three classification dimensions, each split into high and low at its median."""
+def classify(metrics: pd.DataFrame, fluctuation_stat: str = "range") -> pd.DataFrame:
+    """The three classification dimensions, each split into high and low at its median.
+
+    The median split and the fluctuation statistic are tools of this software: the article groups
+    regions by the range of their intensity fluctuations; other spread statistics can be chosen.
+    """
     if fluctuation_stat not in FLUCTUATION_STATS:
         raise ValueError(f"fluctuation_stat must be one of {list(FLUCTUATION_STATS)}")
     return pd.DataFrame({

@@ -71,7 +71,7 @@ def main(argv=None) -> int:
 
     m = sub.add_parser("metrics", help="classification metrics of all regions")
     m.add_argument("directory")
-    m.add_argument("--fluctuation-stat", choices=FLUCTUATION_STATS, default="iqr")
+    m.add_argument("--fluctuation-stat", choices=FLUCTUATION_STATS, default="range")
     m.add_argument("--out")
     m.set_defaults(func=_metrics)
 

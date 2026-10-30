@@ -12,24 +12,24 @@ Typical use::
     print(result.totals["reduction_pct"])
 """
 
-from .inputs import BASELOAD_FUELS, CURTAILABLE_FUELS, FUELS, RENEWABLE_FUELS, RegionData, make_region
+from .inputs import BASELOAD_FUELS, FUELS, REGULATION_BASE_FUELS, RENEWABLE_FUELS, RegionData, make_region
 from .io import read_inputs, read_region, write_inputs
 from .metrics import classify, diversity_index, intensity_fluctuation, region_metrics, renewable_share
 from .model import ModelOptions, WindowModel, build_window_model
-from .preprocess import EIA_COLUMNS, convert_intensity, fill_gaps, qa_summary, region_from_records
+from .preprocess import EIA_COLUMNS, complete_hours, convert_intensity, fill_gaps, qa_summary, region_from_records
 from .results import RunResult, constraint_residuals
 from .scenarios import WINDOWS, Case, ModelData, feasibility_problems, model_data, scaled_intensity, window_labels
-from .solve import SolveError, run, solve_data, solve_window
+from .solve import SolveError, run, solve_data, solve_window, verify_window
 from .synthetic import PROFILES, synthetic_inputs, synthetic_raw_records, synthetic_region
 
 __version__ = "1.0.0"
 
 __all__ = [
-    "BASELOAD_FUELS", "CURTAILABLE_FUELS", "FUELS", "RENEWABLE_FUELS", "RegionData", "make_region",
+    "BASELOAD_FUELS", "REGULATION_BASE_FUELS", "FUELS", "RENEWABLE_FUELS", "RegionData", "make_region",
     "read_inputs", "read_region", "write_inputs", "classify", "diversity_index", "intensity_fluctuation",
     "region_metrics", "renewable_share", "ModelOptions", "WindowModel", "build_window_model", "EIA_COLUMNS",
-    "convert_intensity", "fill_gaps", "qa_summary", "region_from_records", "RunResult", "constraint_residuals",
+    "complete_hours", "convert_intensity", "fill_gaps", "qa_summary", "region_from_records", "RunResult", "constraint_residuals",
     "WINDOWS", "Case", "ModelData", "feasibility_problems", "model_data", "scaled_intensity", "window_labels",
-    "SolveError", "run", "solve_data", "solve_window", "PROFILES", "synthetic_inputs", "synthetic_raw_records",
+    "SolveError", "run", "solve_data", "solve_window", "verify_window", "PROFILES", "synthetic_inputs", "synthetic_raw_records",
     "synthetic_region", "__version__",
 ]

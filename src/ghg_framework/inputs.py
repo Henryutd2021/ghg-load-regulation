@@ -22,8 +22,11 @@ FUELS: Tuple[str, ...] = ("coal", "gas", "nuclear", "oil", "hydro", "solar", "wi
 RENEWABLE_FUELS: Tuple[str, ...] = ("hydro", "solar", "wind")
 
 #: Default fuels of the two hourly bounds (Eqs. 4-5); see docs/formulation.md.
-CURTAILABLE_FUELS: Tuple[str, ...] = ("hydro", "solar", "wind")
+#: c_max: a share of total generation (all fuels); c_min: output of coal and nuclear.
+REGULATION_BASE_FUELS: Tuple[str, ...] = FUELS
 BASELOAD_FUELS: Tuple[str, ...] = ("coal", "nuclear")
+
+ONE_HOUR = pd.Timedelta(hours=1)
 
 
 @dataclass(frozen=True)
@@ -69,6 +72,11 @@ def validate_region(r: RegionData) -> None:
         raise ValueError(f"{r.name}: time must be a DatetimeIndex")
     if r.time.has_duplicates or not r.time.is_monotonic_increasing:
         raise ValueError(f"{r.name}: time must be strictly increasing without duplicates")
+    if n > 1:
+        steps = r.time[1:] - r.time[:-1]
+        if not (steps == ONE_HOUR).all():
+            bad = r.time[1:][steps != ONE_HOUR][0]
+            raise ValueError(f"{r.name}: time must advance by exactly one hour from row to row (first break before {bad})")
     for label, arr in (("demand", r.demand), ("intensity", r.intensity)):
         if np.shape(arr) != (n,):
             raise ValueError(f"{r.name}: {label} has shape {np.shape(arr)}, expected ({n},)")

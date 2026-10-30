@@ -25,10 +25,17 @@ def test_fuel_columns_and_hours(week):
     (lambda t, d, e, g: (t, d, e, g.assign(wind=np.inf)), "non-finite"),
     (lambda t, d, e, g: (t, d, e, g.drop(columns="oil")), "lacks fuels"),
     (lambda t, d, e, g: (t, d[:-1], e, g), "shape"),
+    (lambda t, d, e, g: (t.delete(5).insert(5, t[5] + pd.Timedelta(minutes=30)), d, e, g), "exactly one hour"),
 ])
 def test_validation_errors(week, breaker, message):
     with pytest.raises(ValueError, match=message):
         make_region("bad", *breaker(*_parts(week)))
+
+
+def test_missing_hours_are_refused(week):
+    keep = np.r_[0:10, 12:week.hours]
+    with pytest.raises(ValueError, match="exactly one hour"):
+        make_region("gap", week.time[keep], week.demand[keep], week.intensity[keep], week.generation.iloc[keep])
 
 
 def test_slice(spring):

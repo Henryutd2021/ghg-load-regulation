@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ghg_framework import EIA_COLUMNS, convert_intensity, fill_gaps, qa_summary, region_from_records, synthetic_raw_records
+from ghg_framework import EIA_COLUMNS, complete_hours, convert_intensity, fill_gaps, qa_summary, region_from_records, synthetic_raw_records
 
 
 def test_convert_intensity_units():
@@ -24,15 +24,41 @@ def test_fill_gaps_short_and_long():
 
 def test_region_from_records_restores_the_region(week):
     raw = synthetic_raw_records(week, seed=1)
+    assert len(raw) == week.hours - 2                                                 # two hours without a record
     region, report = region_from_records("Mixed", raw)
-    assert report["hours"] == week.hours and report["negative_generation_values"] >= 1
-    assert report["zero_demand_hours"] >= 1 and report["missing_demand"] >= 1
+    assert report["hours"] == week.hours and report["missing_rows"] == 2
+    assert report["negative_generation_values"] >= 1
+    assert report["zero_demand_hours"] >= 1 and report["missing_demand"] >= 3
+    assert (region.time == week.time).all()
     np.testing.assert_allclose(region.intensity, week.intensity, rtol=0.05)          # gaps filled by interpolation
-    untouched = raw[EIA_COLUMNS["demand"]].notna() & (raw[EIA_COLUMNS["demand"]] > 0)
+    present = pd.Series(week.time).isin(pd.to_datetime(raw[EIA_COLUMNS["time"]])).to_numpy()
+    raw_demand = pd.Series(np.nan, index=week.time)
+    raw_demand[pd.to_datetime(raw[EIA_COLUMNS["time"]])] = raw[EIA_COLUMNS["demand"]].to_numpy()
+    untouched = present & raw_demand.notna().to_numpy() & (raw_demand.to_numpy() > 0)
     np.testing.assert_allclose(region.demand[untouched], week.demand[untouched])
     assert (region.generation >= 0).all().all()
     qa = qa_summary(region)
     assert qa["hours"] == week.hours and 0.9 < qa["generation_to_demand"] < 1.5
+
+
+def test_missing_rows_beyond_the_gap_limit_are_refused(week):
+    raw = synthetic_raw_records(week, seed=1, dropped_rows=0)
+    raw = raw.drop(index=range(40, 50)).reset_index(drop=True)                        # 10 hours without a record
+    with pytest.raises(ValueError, match="still missing"):
+        region_from_records("Mixed", raw, max_gap=3)
+
+
+def test_complete_hours_rejects_repeats_and_sub_hourly_records():
+    t = pd.date_range("2025-11-02 00:00", periods=4, freq="h")
+    repeated = pd.DataFrame({"time": [t[0], t[1], t[1], t[2]], "v": range(4)})
+    with pytest.raises(ValueError, match="repeated timestamps"):
+        complete_hours(repeated, "time")
+    half = pd.DataFrame({"time": pd.date_range("2025-01-01", periods=4, freq="30min"), "v": range(4)})
+    with pytest.raises(ValueError, match="on the hour"):
+        complete_hours(half, "time")
+    edges = pd.DataFrame({"time": t[1:3], "v": [1.0, 2.0]})
+    out, added = complete_hours(edges, "time", start=t[0], end=t[3] + pd.Timedelta(hours=1))
+    assert added == 2 and len(out) == 4 and out["v"].isna().sum() == 2
 
 
 def test_region_from_records_refuses_long_gaps(week):

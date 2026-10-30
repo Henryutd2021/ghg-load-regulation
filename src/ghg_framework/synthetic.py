@@ -87,10 +87,10 @@ def synthetic_inputs(names: Iterable[str] = tuple(PROFILES), hours: int = 8760, 
     return {n: synthetic_region(n, hours=hours, start=start, seed=seed + i) for i, n in enumerate(names)}
 
 
-def synthetic_raw_records(region: RegionData, seed: int = 0, gap_share: float = 0.002) -> pd.DataFrame:
+def synthetic_raw_records(region: RegionData, seed: int = 0, gap_share: float = 0.002, dropped_rows: int = 2) -> pd.DataFrame:
     """The region as raw hourly records in the layout of EIA's regional files, with the defects that
     the pipeline must handle: intensity in lb CO2/kWh, short gaps, a few negative net-generation values,
-    and some zero-consumption hours."""
+    some zero-consumption hours, and ``dropped_rows`` consecutive hours without a record."""
     rng = np.random.default_rng(seed)
     n = region.hours
     df = pd.DataFrame({RAW_COLUMNS["time"]: region.time})
@@ -105,4 +105,7 @@ def synthetic_raw_records(region: RegionData, seed: int = 0, gap_share: float = 
     df.loc[neg, RAW_COLUMNS["hydro"]] = -rng.uniform(1, 50, size=neg.size)
     zero = rng.choice(np.arange(1, n - 1), size=max(1, int(gap_share * n / 2)), replace=False)
     df.loc[zero, RAW_COLUMNS["demand"]] = 0.0
+    if dropped_rows:
+        first = int(rng.integers(1, n - dropped_rows - 1))
+        df = df.drop(index=range(first, first + dropped_rows)).reset_index(drop=True)
     return df

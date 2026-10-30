@@ -62,13 +62,38 @@ def fill_gaps(series: pd.Series, max_gap: int = 3) -> Tuple[pd.Series, int]:
     return filled, int(filled.isna().sum())
 
 
+def complete_hours(df: pd.DataFrame, time_col: str, start=None, end=None, name: str = "") -> Tuple[pd.DataFrame, int]:
+    """Reindex hourly records to every hour of the period, so that missing rows become missing values.
+
+    The period runs from ``start`` (or the first record) to the hour before ``end`` (or the last record).
+    Raises ValueError for repeated timestamps (e.g. daylight-saving repeats: use UTC or local standard
+    time) and for timestamps that are not on the hour (the records must be hourly).
+    Returns the completed frame and the number of rows that were added.
+    """
+    t = pd.to_datetime(df[time_col])
+    if t.empty:
+        raise ValueError(f"{name}: no records in the period")
+    if t.duplicated().any():
+        raise ValueError(f"{name}: repeated timestamps (first {t[t.duplicated()].iloc[0]}); "
+                         "use a time column without daylight-saving repeats (UTC or local standard time)")
+    if (t != t.dt.floor("h")).any():
+        raise ValueError(f"{name}: timestamps must be on the hour (hourly records); first other: {t[t != t.dt.floor('h')].iloc[0]}")
+    first = pd.Timestamp(start) if start is not None else t.iloc[0]
+    last = pd.Timestamp(end) - pd.Timedelta(hours=1) if end is not None else t.iloc[-1]
+    full = pd.date_range(first, last, freq="h")
+    out = df.assign(**{time_col: t}).set_index(time_col).reindex(full)
+    out.index.name = time_col
+    return out.reset_index(), int(len(full) - len(df))
+
+
 def region_from_records(name: str, df: pd.DataFrame, columns: Optional[Mapping[str, str]] = None,
                         intensity_unit: str = "lb/kWh", start=None, end=None, max_gap: int = 3,
                         zero_demand_as_missing: bool = True) -> Tuple[RegionData, dict]:
     """Raw hourly records of one region -> (RegionData, report).
 
-    Steps: select the period; treat zero demand as missing (optional); fill short gaps in demand,
-    intensity and each fuel; clip negative net generation to 0; convert the intensity to kg CO2/MWh.
+    Steps: select the period; add the hours that have no record (``complete_hours``); treat zero demand
+    as missing (optional); fill short gaps in demand, intensity and each fuel; clip negative net
+    generation to 0; convert the intensity to kg CO2/MWh.
     Raises ValueError if values are still missing after gap filling; the report lists what was done.
     """
     cols = dict(EIA_COLUMNS if columns is None else columns)
@@ -76,7 +101,8 @@ def region_from_records(name: str, df: pd.DataFrame, columns: Optional[Mapping[s
     if absent:
         raise ValueError(f"{name}: raw records lack columns {absent}")
     raw = select_period(df, cols["time"], start, end)
-    report = {"region": name, "hours": len(raw)}
+    raw, missing_rows = complete_hours(raw, cols["time"], start, end, name)
+    report = {"region": name, "hours": len(raw), "missing_rows": missing_rows}
 
     demand = raw[cols["demand"]].astype(float)
     if zero_demand_as_missing:

@@ -14,7 +14,7 @@ The module `ghg_framework.preprocess` implements the generic steps (period selec
 ```mermaid
 flowchart LR
   EIA[EIA Hourly Electric Grid Monitor<br/>regional hourly files] --> RAW[raw hourly records<br/>one table per region]
-  RAW -->|select_period| P[study year]
+  RAW -->|select_period<br/>complete_hours| P[study year,<br/>every hour present]
   P -->|zero demand as missing<br/>fill_gaps<br/>clip negative generation<br/>convert_intensity| R[RegionData<br/>validated]
   R -->|qa_summary| QA[QA quantities]
   R -->|write_inputs| D[(input directory)]
@@ -47,7 +47,8 @@ flowchart LR
 ### 2. Select the study period
 
 - Read the hourly sheet and keep the study year (`select_period`, start inclusive, end exclusive).
-- Use a time column without daylight-saving repeats: UTC, or local standard time. The framework requires strictly increasing timestamps without duplicates. Calendar windows (months, quarters) follow the column you choose.
+- Use a time column without daylight-saving repeats: UTC, or local standard time. Calendar windows (months, quarters) follow the column you choose.
+- `complete_hours` reindexes the records to every hour of the period, so an hour without a record becomes a row of missing values that the next step handles. It refuses repeated timestamps and timestamps that are not on the hour (the records must be hourly).
 
 ### 3. Missing and implausible values (`region_from_records`)
 
@@ -82,7 +83,7 @@ Also plot a week of each season, and look at the hours that were filled.
 | File | Columns | Unit | Rules |
 |---|---|---|---|
 | `regions.csv` | `region`, `label` | – | unique region names; `label` is free text (may be empty) |
-| `hourly/<region>.csv` | `time`, `demand_mwh`, `intensity_kg_per_mwh`, `gen_coal_mwh`, `gen_gas_mwh`, `gen_nuclear_mwh`, `gen_oil_mwh`, `gen_hydro_mwh`, `gen_solar_mwh`, `gen_wind_mwh`, `gen_other_mwh` | as in the column names | exactly these columns (units are part of the names; other columns are refused, not converted); `time` strictly increasing, no duplicates; all values finite; demand > 0; intensity ≥ 0; generation ≥ 0 |
+| `hourly/<region>.csv` | `time`, `demand_mwh`, `intensity_kg_per_mwh`, `gen_coal_mwh`, `gen_gas_mwh`, `gen_nuclear_mwh`, `gen_oil_mwh`, `gen_hydro_mwh`, `gen_solar_mwh`, `gen_wind_mwh`, `gen_other_mwh` | as in the column names | exactly these columns (units are part of the names; other columns are refused, not converted); `time` advances by exactly one hour from row to row; all values finite; demand > 0; intensity ≥ 0; generation ≥ 0 |
 | `README.txt` (optional) | free text | – | description of the dataset |
 
 - One row per hour. The model does not require a full year, but the classification metrics and the article's design use one year per region.

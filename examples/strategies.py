@@ -17,9 +17,9 @@ regions = synthetic_inputs()
 metrics = region_metrics(regions)
 groups = classify(metrics)
 print("Region metrics and groups (median split):")
-print(metrics[["renewable_share", "diversity_index", "intensity_iqr"]].join(groups).round(3).to_string(), "\n")
+print(metrics[["renewable_share", "diversity_index", "intensity_range"]].join(groups).round(3).to_string(), "\n")
 
-base = Case()                                               # quarterly window, ±5 %, κ = 10 %, λ = 0
+base = Case()                                               # quarterly window, ±5 %, c_max = 10 % of total generation, λ = 0
 
 
 def pct(region, case):

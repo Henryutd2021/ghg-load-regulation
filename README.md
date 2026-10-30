@@ -4,7 +4,7 @@ A documented, runnable implementation of the demand-side load-regulation framewo
 
 > Honglin Li, Gulai Shen, Soroush Senemmar, Ali Mehmani and Jie Zhang. **Real-time greenhouse gas emission intensity informed demand-side load regulation for power grid decarbonization.** *Cell Reports Sustainability* 2 (2025) 100367. [doi:10.1016/j.crsus.2025.100367](https://doi.org/10.1016/j.crsus.2025.100367)
 
-The framework shifts a region's hourly electricity demand toward hours in which the region's electricity has a lower greenhouse-gas emission intensity. It does this within an optimization window, keeping the window's total consumption, and within hourly limits set by the energy available for regulation and by unregulatable baseload. A penalty on adjusted hours trades emissions against the disruption of frequent adjustments. The framework also classifies grid regions by renewable penetration, generation diversity and emission-intensity fluctuation, which is how the article compares regulation strategies across grid types.
+The framework shifts a region's hourly electricity demand toward hours in which the region's electricity has a lower greenhouse-gas emission intensity. It does this within an optimization window, keeping the window's total consumption at least at its baseline, and within hourly limits set by the energy available for regulation and by unregulatable baseload. A penalty on adjusted hours trades emissions against the disruption of frequent adjustments. The framework also classifies grid regions by renewable penetration, generation diversity and emission-intensity fluctuation, which is how the article compares regulation strategies across grid types.
 
 ## Research question
 
@@ -17,7 +17,7 @@ How should demand-side load regulation guided by real-time emission intensity be
 | Regions | U.S. grid regions (EIA's regional aggregations of balancing authorities), one calendar year of hourly data | any set of regions, any hourly period |
 | Decision | hourly load adjustment $x_t$, a fraction of demand, within a predefined range | same |
 | Objective | emissions of the optimization cycle plus a penalty $\lambda$ per adjusted hour (Eq. 1) | same |
-| Constraints | total consumption of the cycle kept (Eq. 3); hourly bounds from regulation capacity and unregulatable sources (Eqs. 4–5); indicators of adjusted hours (Eqs. 6–7) | same |
+| Constraints | total consumption of the cycle at least at its baseline (Eq. 3); hourly bounds from regulation capacity and unregulatable sources (Eqs. 4–5); indicators of adjusted hours (Eqs. 6–7) | same; each solution is verified against Eqs. (3)–(7) |
 | Optimization cycle | month, quarter or year, each solved separately | also day, week or the whole period |
 | Grid classification | renewable penetration, Shannon–Wiener diversity (Eq. 8), intensity fluctuation | same, with a choice of fluctuation statistic |
 | Model type | mixed-integer linear program per cycle | same (linopy; HiGHS by default, Gurobi optional) |
@@ -30,7 +30,7 @@ The complete mathematics, with the article's equation numbers, is in [docs/formu
 |---|---|
 | [`docs/formulation.md`](docs/formulation.md) | sets, parameters, variables, objective and every constraint, Eqs. (1)–(8); implementation conventions; modelling notes |
 | [`docs/data_pipeline.md`](docs/data_pipeline.md) | how inputs are built from EIA's hourly regional data, the data-quality rules, and the input file schemas |
-| [`docs/scenarios.md`](docs/scenarios.md) | the three regulation strategies, the grid classification, the case-study design and the sensitivity families |
+| [`docs/scenarios.md`](docs/scenarios.md) | the article's study design (grid types, regulation strategies, case studies, sensitivity families) and how to set each up |
 | [`docs/architecture.md`](docs/architecture.md) | modules, data flow, solvers, problem size, output tables, tests |
 | [`src/ghg_framework/`](src/ghg_framework/) | the implementation: data interface and validation, preprocessing, model, solver interface, results, region metrics, command line |
 | [`examples/`](examples/) | `minimal.py` (one run, a few seconds), `strategies.py` (the three strategies and the sensitivity families on four regions), `prepare_inputs.py` (raw hourly records to an input directory); all on synthetic data |
@@ -65,7 +65,7 @@ from ghg_framework import Case, read_inputs, run, region_metrics, classify
 
 regions = read_inputs("my_inputs/")                     # your own data, see docs/data_pipeline.md
 groups = classify(region_metrics(regions))
-case = Case(window="quarter", adjustment_limit=0.05, curtailment_share=0.10, lam=0.0)
+case = Case(window="quarter", adjustment_limit=0.05, curtailment_share=0.10, lam=0.0)   # c_max = 10 % of total generation
 result = run(regions["Sunny"], case)                    # or run(..., solver="gurobi")
 print(result.totals["reduction_pct"], result.totals["adjusted_hours"])
 result.to_csv("outputs/sunny_quarter")

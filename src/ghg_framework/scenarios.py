@@ -14,7 +14,7 @@ from typing import Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from .inputs import BASELOAD_FUELS, CURTAILABLE_FUELS, FUELS, RegionData
+from .inputs import BASELOAD_FUELS, FUELS, REGULATION_BASE_FUELS, RegionData
 
 #: Window lengths understood by :func:`window_labels`.
 WINDOWS: Tuple[str, ...] = ("day", "week", "month", "quarter", "year", "all")
@@ -22,17 +22,17 @@ WINDOWS: Tuple[str, ...] = ("day", "week", "month", "quarter", "year", "all")
 
 @dataclass(frozen=True)
 class Case:
-    """Settings of one run. Defaults: quarterly window, ±5 % range, 10 % curtailment share, λ = 0."""
+    """Settings of one run. Defaults: quarterly window, ±5 % range, c_max = 10 % of total generation, λ = 0."""
 
     name: str = "benchmark"
     window: str = "quarter"                     # optimization window (cycle T of Eq. 1)
     adjustment_limit: float = 0.05              # a: -a <= x_t <= a (fraction of demand)
-    curtailment_share: float = 0.10             # κ: c_max_t = κ · output of curtailable fuels
+    curtailment_share: float = 0.10             # κ: c_max_t = κ · output of regulation_base_fuels
     lam: float = 0.0                            # λ: penalty per adjusted hour (t CO2)
     demand_scale: float = 1.0                   # multiplies d_t
     solar_scale: float = 1.0                    # multiplies solar output
     wind_scale: float = 1.0                     # multiplies wind output
-    curtailable_fuels: Tuple[str, ...] = CURTAILABLE_FUELS
+    regulation_base_fuels: Tuple[str, ...] = REGULATION_BASE_FUELS
     baseload_fuels: Tuple[str, ...] = BASELOAD_FUELS
 
     def __post_init__(self):
@@ -44,13 +44,17 @@ class Case:
                 raise ValueError(f"{label} must be a finite number >= 0, not {v!r}")
         if not 0 < self.adjustment_limit < 1:
             raise ValueError("adjustment_limit must be between 0 and 1 (a fraction of demand)")
+        if self.curtailment_share > 1:
+            raise ValueError("curtailment_share must be between 0 and 1")
         if self.demand_scale == 0:
             raise ValueError("demand_scale must be > 0")
-        for label in ("curtailable_fuels", "baseload_fuels"):
+        for label in ("regulation_base_fuels", "baseload_fuels"):
             fuels = tuple(getattr(self, label))
             unknown = set(fuels) - set(FUELS)
             if unknown:
                 raise ValueError(f"{label}: unknown fuels {sorted(unknown)}; choose from {list(FUELS)}")
+            if len(set(fuels)) != len(fuels):
+                raise ValueError(f"{label}: each fuel may appear only once")
             object.__setattr__(self, label, fuels)
 
     def with_(self, **changes) -> "Case":
@@ -59,7 +63,7 @@ class Case:
 
     def as_dict(self) -> dict:
         d = asdict(self)
-        d["curtailable_fuels"] = "+".join(self.curtailable_fuels)
+        d["regulation_base_fuels"] = "+".join(self.regulation_base_fuels)
         d["baseload_fuels"] = "+".join(self.baseload_fuels)
         return d
 
@@ -119,7 +123,7 @@ def model_data(region: RegionData, case: Optional[Case] = None, intensity: Optio
     """Arrays of the model for ``region`` under ``case``.
 
     - d_t = demand_scale · demand.
-    - Solar and wind output are scaled; c_max_t = κ · output of ``case.curtailable_fuels`` (Eq. 4),
+    - Solar and wind output are scaled; c_max_t = κ · output of ``case.regulation_base_fuels`` (Eq. 4),
       c_min_t = output of ``case.baseload_fuels`` (Eq. 5).
     - e_t is the region's intensity, changed by :func:`scaled_intensity` when solar or wind are scaled,
       unless ``intensity`` (kg CO2/MWh, one value per hour) is given.
@@ -145,7 +149,7 @@ def model_data(region: RegionData, case: Optional[Case] = None, intensity: Optio
         window=window_labels(region.time, case.window),
         demand=demand,
         intensity=e,
-        c_max=case.curtailment_share * gen[list(case.curtailable_fuels)].sum(axis=1).to_numpy(float),
+        c_max=case.curtailment_share * gen[list(case.regulation_base_fuels)].sum(axis=1).to_numpy(float),
         c_min=gen[list(case.baseload_fuels)].sum(axis=1).to_numpy(float),
         reference_intensity=region.intensity.copy(),
         reference_demand=region.demand.copy(),

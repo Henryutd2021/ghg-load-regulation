@@ -84,6 +84,8 @@ def build_window_model(data: ModelData, label: str, options: Optional[ModelOptio
     m.add_constraints((d * x).sum() >= 0, name="eq3_total_demand")        # sum (1+x) d >= sum d
     m.add_constraints(d * x <= c_max, name="eq4_max_increase")            # x d <= c_max
     m.add_constraints(d * x >= c_min - d, name="eq5_min_load")            # (1+x) d >= c_min
-    m.add_constraints(big_m * z - x >= 0, name="eq6_indicator_up")        # z >= x / M
-    m.add_constraints(big_m * z + x >= 0, name="eq7_indicator_down")      # z >= -x / M
+    # Eqs. 6-7 in the article's form; with M = a, x/M lies in [-1, 1], so the solver's feasibility
+    # tolerance applies on the scale of z.
+    m.add_constraints(z - x / big_m >= 0, name="eq6_indicator_up")        # z >= x / M
+    m.add_constraints(z + x / big_m >= 0, name="eq7_indicator_down")      # z >= -x / M
     return WindowModel(label=label, hours=idx, model=m, data=data, big_m=big_m)

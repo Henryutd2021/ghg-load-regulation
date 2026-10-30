@@ -28,7 +28,8 @@ A region's hourly electricity demand is re-timed toward hours in which the regio
 | $D_t$ | total demand of the cycle before adjustment | MWh | $\sum_t d_t$ of the window |
 | $c^{max}_t$ | maximum regulation capacity in hour $t$ (limit for re-integrating curtailed renewable generation) | MWh | `ModelData.c_max` |
 | $c^{min}_t$ | minimum capacity in hour $t$ (baseline of unregulatable sources such as coal and nuclear) | MWh | `ModelData.c_min` |
-| $a$ | adjustment range: the predefined limit of $\lvert x_t\rvert$ | fraction of $d_t$ | `Case.adjustment_limit` |
+| $a$ | adjustment range: the predefined limit of $\lvert x_t\rvert$, $0 < a < 1$ | fraction of $d_t$ | `Case.adjustment_limit` |
+| $\kappa$ | share of generation available for regulation in Eq. (4), $0 \le \kappa \le 1$ (see conventions) | – | `Case.curtailment_share` |
 | $\lambda$ | weighting factor of the adjusted hours, $\lambda \ge 0$ | t CO2 per adjusted hour | `Case.lam` |
 | $M$ | big-M constant of Eqs. (6)–(7) | – | `ModelOptions.big_m` |
 | $P_r$ | share of total generation from resource $r$ | – | `metrics.fuel_shares` |
@@ -39,7 +40,7 @@ A region's hourly electricity demand is re-timed toward hours in which the regio
 |---|---|---|---|
 | $x_t$ | load adjustment in hour $t$, as a fraction of $d_t$ (negative: reduction, positive: increase) | $-a \le x_t \le a$ | `x` |
 | $z_t$ | 1 if a non-zero adjustment occurs in hour $t$, 0 otherwise | $\{0, 1\}$ | `z` |
-| $E_t$ | emissions in hour $t$ after adjustment | t CO2 | expression of $x_t$ (Eq. 2) |
+| $E_t$ | emissions in hour $t$ after adjustment | kg CO2 with the units above; reported in t | expression of $x_t$ (Eq. 2) |
 
 ## Load-regulation model
 
@@ -77,6 +78,8 @@ $$
 
 with $-a \le x_t \le a$ and $z_t \in \{0, 1\}$.
 
+With $d_t$ in MWh and $e_t$ in kg CO2/MWh, Eq. (2) gives kg CO2. The framework divides by 1000 and works in tonnes throughout: $E_t = (1 + x_t)\,d_t\,e_t / 1000$ (conventions below).
+
 - **Eq. (1)** minimizes the emissions of the cycle plus a penalty proportional to the number of adjusted hours.
 - **Eq. (2)** gives the emissions of hour $t$ for the adjusted load.
 - **Eq. (3)** keeps the total consumption of the cycle at least at its baseline: load is moved in time, not removed.
@@ -113,16 +116,19 @@ A higher $H$ means a more diverse mix of generation resources.
 
 ## Conventions of this implementation
 
-- **Units:** demand and generation in MWh per hour, intensity in kg CO2/MWh, emissions in tonnes: $E_t = (1 + x_t)\,d_t\,e_t / 1000$. $\lambda$ is in tonnes of CO2 per adjusted hour, the unit of Eq. (1).
+- **Units:** demand and generation in MWh per hour, intensity in kg CO2/MWh, emissions in tonnes: $E_t = (1 + x_t)\,d_t\,e_t / 1000$.
+  - $\lambda$ is in the unit of Eq. (1), here tonnes of CO2 per adjusted hour. A value of $\lambda$ taken from another study must be converted to this unit first: its effect depends on the unit in which emissions are measured.
 - **Cycles:** each window is a separate model, solved independently and in time order (`solve.solve_data`). Calendar windows follow the timestamps of the data.
 - **$D_t$ (Eq. 3):** the total baseline demand of the window, $\sum_{t \in w} d_t$. In code, Eq. (3) is written as $\sum_t d_t x_t \ge 0$.
-- **$c^{max}_t$ (Eq. 4):** $c^{max}_t = \kappa \sum_{r \in F^{curt}} g_{r,t}$.
-  - $g_{r,t}$ is the hourly output of resource $r$ and $\kappa$ the curtailment share (`Case.curtailment_share`; 10 % in the article's benchmark).
-  - $F^{curt}$ is the set of fuels whose output can be curtailed (`Case.curtailable_fuels`). The default is solar, wind and hydro; with all fuels, $c^{max}_t$ is a share of total generation.
+- **$c^{max}_t$ (Eq. 4):** the article describes $c^{max}_t$ as the limit for re-integrating curtailed renewable generation, capped at 10 % of total generation. The framework builds it as $c^{max}_t = \kappa \sum_{r \in F^{base}} g_{r,t}$.
+  - $g_{r,t}$ is the hourly output of resource $r$; $\kappa$ is `Case.curtailment_share` (default 10 %).
+  - $F^{base}$ is `Case.regulation_base_fuels`. The default is all fuels, so $c^{max}_t$ is $\kappa$ times total generation.
+  - To tie the bound to the output that would otherwise be curtailed, restrict $F^{base}$, for example to solar, wind and hydro.
 - **$c^{min}_t$ (Eq. 5):** the hourly output of the unregulatable sources, $c^{min}_t = \sum_{r \in F^{base}} g_{r,t}$, with $F^{base}$ = coal and nuclear by default (`Case.baseload_fuels`).
-- **$M$ (Eqs. 6–7):** any $M \ge a$ is valid, because $\lvert x_t\rvert \le a$. The default is $M = a$; `ModelOptions(big_m=...)` sets another value.
+- **$M$ (Eqs. 6–7):** any $M \ge a$ is valid, because $\lvert x_t\rvert \le a$. The default is $M = a$; `ModelOptions(big_m=...)` sets another value. The constraints are written as in the article, $z_t - x_t/M \ge 0$ and $z_t + x_t/M \ge 0$, so that with $M = a$ the solver's tolerances apply on the scale of $z_t$.
 - **Objective constant:** $\sum_t E_t = \sum_t d_t e_t + \sum_t d_t e_t x_t$. The first sum does not depend on the decisions and is left out of the solver's objective. The solver therefore minimizes the change in emissions plus the penalty, and a relative MIP gap applies to that change (default $10^{-6}$).
-- **Adjusted hours:** counted as the hours with $\lvert x_t\rvert > 10^{-6}$. This equals $\sum_t z_t$ at the optimum when $\lambda > 0$. With $\lambda = 0$, the objective does not involve $z_t$, so the count from $x_t$ is the one reported.
+- **Tolerances and verification:** the solvers run with feasibility and integrality tolerances of $10^{-8}$. Every returned solution is then checked (`solve.verify_window`): $z_t$ integral, Eqs. (6)–(7) with the rounded $z_t$, Eqs. (3)–(5) and the range, and the objective recomputed from $x_t$ and $z_t$. A window that fails is reported as not solved; by default `run` stops with an error.
+- **Adjusted hours:** two counts are reported. `indicator_hours` is $\sum_t z_t$, the quantity penalized in Eq. (1). `adjusted_hours` counts the hours with $\lvert x_t\rvert > 10^{-6}$, i.e. load changes of practical size. With $\lambda = 0$ the objective does not involve $z_t$, so only `adjusted_hours` is meaningful.
 - **Feasibility:** every hour needs $\max(-a,\; c^{min}_t/d_t - 1) \le \min(a,\; c^{max}_t/d_t)$. `scenarios.feasibility_problems` lists the hours that break this, and `solve` stops with an error naming them.
 - **Eq. (8):** $P_r$ is the fraction of each fuel in total output over the period of the data (a year), with the natural logarithm. Fuels with zero output are skipped.
 
