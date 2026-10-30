@@ -7,7 +7,7 @@ from ghg_framework import Case, run, synthetic_region
 
 region = synthetic_region("Sunny")                              # one synthetic year, hourly
 case = Case(window="quarter", adjustment_limit=0.05, curtailment_share=0.10, lam=0.0)
-result = run(region, case)                                      # HiGHS; run(..., solver="gurobi") also works
+result = run(region, case)                                      # HiGHS; also solver="gurobi"; verbose=True shows the solver log
 
 print(f"region {result.region}, case: window={case.window}, range=±{case.adjustment_limit:.0%}, λ={case.lam}")
 print(result.windows[["window", "hours", "baseline_t", "optimized_t", "reduction_t", "reduction_pct", "adjusted_hours"]]

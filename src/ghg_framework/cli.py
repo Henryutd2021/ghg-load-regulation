@@ -27,7 +27,7 @@ def _run(args) -> int:
         return 2
     case = Case(name=args.name, window=args.window, adjustment_limit=args.limit, curtailment_share=args.curtailment_share,
                 lam=args.lam, demand_scale=args.demand_scale, solar_scale=args.solar_scale, wind_scale=args.wind_scale)
-    result = run(regions[args.region], case, solver=args.solver)
+    result = run(regions[args.region], case, solver=args.solver, verbose=args.verbose)
     print(json.dumps({"region": result.region, **result.totals}, indent=2))
     if args.out_dir:
         result.to_csv(args.out_dir)
@@ -66,6 +66,7 @@ def main(argv=None) -> int:
     r.add_argument("--solar-scale", type=float, default=1.0)
     r.add_argument("--wind-scale", type=float, default=1.0)
     r.add_argument("--solver", default="highs")
+    r.add_argument("--verbose", action="store_true", help="show the solver's banner and log (quiet by default)")
     r.add_argument("--out-dir")
     r.set_defaults(func=_run)
 

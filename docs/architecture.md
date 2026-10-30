@@ -45,6 +45,7 @@ flowchart TD
 - Defaults for both: relative MIP gap $`10^{-6}`$, feasibility and integrality tolerances $`10^{-8}`$. The objective is the change in emissions plus the penalty (formulation.md, conventions), so the gap applies to that change.
 - Every solution is verified before it is accepted (`verify_window`; formulation.md, conventions). With `run(..., require_optimal=False)`, a window that is not optimal or fails verification is kept as not solved: its rows are NaN, and so are the run totals except `baseline_t` and `reference_t`.
 - Solver options go in a mapping and override the defaults, for example `run(region, case, options={"time_limit": 60})` for HiGHS or `run(region, case, solver="gurobi", options={"Threads": 4})`.
+- Solver output is off by default. The solver log is switched off, and whatever the solver prints to standard output during the solve is discarded (`solve.quiet_stdout`). This covers the HiGHS banner, which HiGHS prints from C before linopy applies `output_flag`, and Gurobi's licence and parameter lines. Standard error is left alone, so warnings and errors still appear. `run(..., verbose=True)` (also `solve_data`, `solve_window`) or `ghg-framework run ... --verbose` shows the banner and the log.
 
 ## Problem size
 
@@ -76,6 +77,7 @@ A yearly window has 8,760 binaries. With $`\lambda = 0`$ the binaries do not ent
 - the data interface: validation errors (order, hourly cadence, missing hours, missing and non-finite values, signs, fuel columns, shapes), the input-directory round trip, refusal of columns with other units, duplicate regions;
 - the model: window labels; optimal solves with Eqs. (3)–(7) recomputed from the solution; objective identity; non-negative reductions when no adjustment is feasible, and a forced increase when baseload exceeds demand; larger windows and wider ranges never reduce less; λ lowers the adjusted hours; zero curtailment share means no regulation; a regression case where an adjustment far below default solver tolerances must still pay the penalty; the solution verification; NaN totals when a window has no solution; the choice of $`M`$ does not change the optimum; infeasible hours are reported; case validation; the bounds and the intensity rule of `model_data`; user intensities and fuel sets;
 - Gurobi and HiGHS agree on a small instance (skipped without gurobipy or a licence);
+- solver output: no HiGHS banner on standard output by default, from Python and from the command line; banner and log with `verbose=True` or `--verbose`, with the same result; standard output restored and standard error kept when the solve raises;
 - metrics: Eq. (8) on known shares, renewable share, fluctuation statistics, classification;
 - the pipeline: unit conversion, gap filling, completion of missing rows, refusal of repeated or sub-hourly timestamps, recovery of a region from synthetic raw records, refusal of long gaps, period selection;
 - the command line.
