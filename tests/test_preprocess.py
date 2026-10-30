@@ -89,3 +89,7 @@ def test_synthetic_raw_records_on_short_inputs(week):
     assert len(raw) == 2                                                             # first and last row kept
     with pytest.raises(ValueError, match="need at least"):
         synthetic_raw_records(short, dropped_rows=3)
+    with pytest.raises(ValueError, match="non-negative integer"):
+        synthetic_raw_records(short, dropped_rows=-1)
+    with pytest.raises(ValueError, match="at least 3 hours"):
+        synthetic_raw_records(week.slice("2025-06-02 00:00", "2025-06-02 02:00"), dropped_rows=0)

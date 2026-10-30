@@ -51,7 +51,7 @@ flowchart TD
 For a window of $T$ hours, the model has
 
 - $T$ continuous variables $x_t$ and $T$ binary variables $z_t$;
-- $4T + 1$ constraints: Eqs. (4)–(7) for every hour and Eq. (3) once.
+- $4T + 1$ constraints with the default $M = a$: Eqs. (4)–(7) for every hour and Eq. (3) once; $6T + 1$ with $M > a$, which adds the linking with $a$ (formulation.md, conventions).
 
 A yearly window has 8,760 binaries. With $\lambda = 0$ the binaries do not enter the objective, and HiGHS solves a year in well under a second. With $\lambda > 0$ a window takes from a fraction of a second to a few seconds on a laptop. `examples/strategies.py` (about 60 runs of a synthetic year) takes about a minute.
 

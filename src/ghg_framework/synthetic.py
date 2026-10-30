@@ -91,8 +91,12 @@ def synthetic_raw_records(region: RegionData, seed: int = 0, gap_share: float = 
     """The region as raw hourly records in the layout of EIA's regional files, with the defects that
     the pipeline must handle: intensity in lb CO2/kWh, short gaps, a few negative net-generation values,
     some zero-consumption hours, and ``dropped_rows`` consecutive hours without a record."""
-    rng = np.random.default_rng(seed)
+    if not isinstance(dropped_rows, (int, np.integer)) or dropped_rows < 0:
+        raise ValueError(f"dropped_rows must be a non-negative integer, not {dropped_rows!r}")
     n = region.hours
+    if n < 3:
+        raise ValueError("synthetic raw records need at least 3 hours (defects are placed in interior hours)")
+    rng = np.random.default_rng(seed)
     df = pd.DataFrame({RAW_COLUMNS["time"]: region.time})
     df[RAW_COLUMNS["demand"]] = region.demand
     df[RAW_COLUMNS["intensity"]] = region.intensity / 453.59237          # kg/MWh -> lb/kWh

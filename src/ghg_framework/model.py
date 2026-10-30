@@ -77,7 +77,7 @@ def build_window_model(data: ModelData, label: str, options: Optional[ModelOptio
     x = m.add_variables(lower=-a, upper=a, coords=[t], name="x")
     z = m.add_variables(binary=True, coords=[t], name="z")
 
-    # Eq. 1 minus the constant sum_t d_t e_t:  sum_t d_t e_t x_t + λ sum_t z_t
+    # Eq. 1 (in tonnes) minus the constant sum_t d_t e_t / 1000:  sum_t d_t e_t x_t / 1000 + λ sum_t z_t
     objective = (de_t * x).sum()
     if data.case.lam > 0:
         objective = objective + data.case.lam * z.sum()
