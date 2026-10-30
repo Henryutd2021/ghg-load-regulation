@@ -65,12 +65,14 @@ def fill_gaps(series: pd.Series, max_gap: int = 3) -> Tuple[pd.Series, int]:
 def complete_hours(df: pd.DataFrame, time_col: str, start=None, end=None, name: str = "") -> Tuple[pd.DataFrame, int]:
     """Reindex hourly records to every hour of the period, so that missing rows become missing values.
 
-    The period runs from ``start`` (or the first record) to the hour before ``end`` (or the last record).
-    Raises ValueError for repeated timestamps (e.g. daylight-saving repeats: use UTC or local standard
-    time) and for timestamps that are not on the hour (the records must be hourly).
-    Returns the completed frame and the number of rows that were added.
+    The period holds the whole hours in [start, end): from ``start`` rounded up to the hour (or the first
+    record) to the last whole hour before ``end`` (or the last record). Records are sorted first;
+    records outside the period are dropped. Raises ValueError for repeated timestamps (e.g.
+    daylight-saving repeats: use UTC or local standard time) and for timestamps that are not on the
+    hour (the records must be hourly). Returns the completed frame and the number of rows that were added.
     """
-    t = pd.to_datetime(df[time_col])
+    df = df.assign(**{time_col: pd.to_datetime(df[time_col])}).sort_values(time_col).reset_index(drop=True)
+    t = df[time_col]
     if t.empty:
         raise ValueError(f"{name}: no records in the period")
     if t.duplicated().any():
@@ -78,12 +80,15 @@ def complete_hours(df: pd.DataFrame, time_col: str, start=None, end=None, name: 
                          "use a time column without daylight-saving repeats (UTC or local standard time)")
     if (t != t.dt.floor("h")).any():
         raise ValueError(f"{name}: timestamps must be on the hour (hourly records); first other: {t[t != t.dt.floor('h')].iloc[0]}")
-    first = pd.Timestamp(start) if start is not None else t.iloc[0]
-    last = pd.Timestamp(end) - pd.Timedelta(hours=1) if end is not None else t.iloc[-1]
+    first = pd.Timestamp(start).ceil("h") if start is not None else t.iloc[0]
+    last = (pd.Timestamp(end) - pd.Timedelta(1, "ns")).floor("h") if end is not None else t.iloc[-1]
+    if last < first:
+        raise ValueError(f"{name}: the period {start} to {end} holds no whole hour")
+    inside = df[(t >= first) & (t <= last)]
     full = pd.date_range(first, last, freq="h")
-    out = df.assign(**{time_col: t}).set_index(time_col).reindex(full)
+    out = inside.set_index(time_col).reindex(full)
     out.index.name = time_col
-    return out.reset_index(), int(len(full) - len(df))
+    return out.reset_index(), int(len(full) - len(inside))
 
 
 def region_from_records(name: str, df: pd.DataFrame, columns: Optional[Mapping[str, str]] = None,

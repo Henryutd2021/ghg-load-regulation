@@ -72,8 +72,12 @@ def test_tiny_adjustments_pay_the_penalty():
     np.testing.assert_allclose(result.hourly["x"], 0.0, atol=1e-12)
     assert result.totals["indicator_hours"] == 0 and result.totals["reduction_t"] == pytest.approx(0.0, abs=1e-9)
     _residuals_ok(result, model_data(r, case))
+    big_m = run(r, case, model_options=ModelOptions(big_m=100.0))          # a large M must not change this
+    np.testing.assert_allclose(big_m.hourly["x"], 0.0, atol=1e-12)
+    assert big_m.totals["indicator_hours"] == 0
     cheap = run(r, case.with_(lam=0.001))                                   # now the shift pays off
     assert cheap.totals["indicator_hours"] == 2
+    assert cheap.totals["adjusted_hours"] == 0                              # |x| = 5e-7 is below ADJUSTED_TOL
     assert cheap.totals["reduction_t"] == pytest.approx(0.05, rel=1e-6)
 
 
@@ -94,6 +98,9 @@ def test_missing_window_makes_totals_unavailable(week):
         assert np.isnan(t[key])
     assert np.isfinite(t["baseline_t"])
     assert not result.windows.loc[3, "solved"] and np.isnan(result.windows.loc[3, "reduction_t"])
+    unsolved = data.window == labels[3]
+    assert result.hourly.loc[unsolved, "adjusted"].isna().all()
+    assert not result.hourly.loc[~unsolved, "adjusted"].isna().any()
     with pytest.raises(ValueError, match="without a solution"):
         constraint_residuals(result, data)
 
@@ -205,3 +212,7 @@ def test_verification_rejects_indicator_and_constraint_violations(week):
     assert any("integral" in p for p in verify_window(wm, zero, np.full(n, 0.4), 0.0))
     assert any("range" in p for p in verify_window(wm, np.full(n, 0.06), np.ones(n), 0.0))
     assert any("objective" in p for p in verify_window(wm, zero, zero, 123.0))
+    assert verify_window(wm, zero, zero, float("nan")) == ["non-finite solution values or objective"]
+    assert any("outside {0, 1}" in p for p in verify_window(wm, zero, np.full(n, 2.0), 2.0 * 2 * n))
+    big = build_window_model(model_data(week, case), "all", ModelOptions(big_m=100.0))
+    assert any("Eqs. 6-7" in p for p in verify_window(big, x, zero, 0.0))   # checked on x/a, not x/M

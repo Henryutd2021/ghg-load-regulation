@@ -9,8 +9,9 @@ Two counts of adjusted hours are reported:
 - ``indicator_hours``: the sum of the binary indicators z_t, the quantity penalized in Eq. 1;
 - ``adjusted_hours``: hours with |x_t| > ADJUSTED_TOL, i.e. a load change of practical size.
 
-They are equal unless the solver keeps an indicator at 1 for a negligible x_t (possible only when it
-does not raise the objective, e.g. with λ = 0).
+They differ when an indicator is 1 for an adjustment smaller than ADJUSTED_TOL: with λ = 0 (the
+indicators do not enter the objective), or when a very small adjustment is worth its penalty.
+Hourly rows of windows without a solution have NaN values and ``adjusted`` = <NA>.
 """
 
 from __future__ import annotations
@@ -92,12 +93,13 @@ def collect(data: ModelData, solutions) -> RunResult:
         "demand_mwh": data.demand,
         "x": x,
         "adjusted_demand_mwh": (1 + x) * data.demand,
-        "adjusted": np.abs(x) > ADJUSTED_TOL,
+        "adjusted": pd.array(np.where(np.isfinite(x), np.abs(x) > ADJUSTED_TOL, False), dtype="boolean"),
         "z": z,
         "intensity_kg_per_mwh": data.intensity,
         "baseline_emissions_t": data.demand * data.intensity / KG_PER_T,
         "emissions_t": (1 + x) * data.demand * data.intensity / KG_PER_T,
     })
+    hourly.loc[~np.isfinite(x), "adjusted"] = pd.NA                       # unsolved hours: unknown, not False
     all_solved = bool(windows["solved"].all())
     base = float(windows["baseline_t"].sum())
 

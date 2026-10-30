@@ -48,7 +48,7 @@ flowchart LR
 
 - Read the hourly sheet and keep the study year (`select_period`, start inclusive, end exclusive).
 - Use a time column without daylight-saving repeats: UTC, or local standard time. Calendar windows (months, quarters) follow the column you choose.
-- `complete_hours` reindexes the records to every hour of the period, so an hour without a record becomes a row of missing values that the next step handles. It refuses repeated timestamps and timestamps that are not on the hour (the records must be hourly).
+- `complete_hours` reindexes the records to every whole hour of the period [start, end), so an hour without a record becomes a row of missing values that the next step handles. It sorts the records first, and refuses repeated timestamps and timestamps that are not on the hour (the records must be hourly).
 
 ### 3. Missing and implausible values (`region_from_records`)
 

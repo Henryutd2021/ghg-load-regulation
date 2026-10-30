@@ -41,23 +41,26 @@ class WindowSolution:
 def verify_window(wm: WindowModel, x: np.ndarray, z_raw: np.ndarray, solver_objective: float) -> list:
     """Problems of a returned solution (empty list = verified).
 
-    Checks, on the unrounded solver values: integrality of z; Eqs. 6-7 with the rounded z (on the
-    scale of x/M); Eqs. 3-5 relative to the window's demand; and the objective recomputed from x and
-    the rounded z against the solver's objective.
+    Checks, on the unrounded solver values: a finite objective; z integral and in {0, 1}; Eqs. 6-7 with
+    the rounded z, on the scale x/a (independent of the M used in the model); Eqs. 3-5 relative to the
+    window's demand; the range; and the objective recomputed from x and the rounded z.
     """
     d = wm.data.demand[wm.hours]
     e = wm.data.intensity[wm.hours]
     c_max, c_min = wm.data.c_max[wm.hours], wm.data.c_min[wm.hours]
     lam = wm.data.case.lam
     problems = []
-    if not (np.all(np.isfinite(x)) and np.all(np.isfinite(z_raw))):
-        return ["non-finite solution values"]
+    if not (np.all(np.isfinite(x)) and np.all(np.isfinite(z_raw)) and np.isfinite(solver_objective)):
+        return ["non-finite solution values or objective"]
     z = np.round(z_raw)
     if np.max(np.abs(z_raw - z)) > VERIFY_TOL["integrality"]:
         problems.append(f"z not integral (max deviation {np.max(np.abs(z_raw - z)):.2e})")
-    ind = np.max(np.abs(x) / wm.big_m - z)
+    if np.any((z != 0) & (z != 1)):
+        problems.append("z outside {0, 1}")
+    a = wm.data.case.adjustment_limit
+    ind = np.max(np.abs(x) / a - z)
     if ind > VERIFY_TOL["indicator"]:
-        problems.append(f"Eqs. 6-7 violated: |x|/M exceeds z by {ind:.2e}")
+        problems.append(f"Eqs. 6-7 violated: |x|/a exceeds z by {ind:.2e}")
     scale = float(np.max(d))
     checks = {
         "Eq. 3": -float(np.sum(d * x)) / float(np.sum(d)),

@@ -5,9 +5,9 @@ Variables (dimension ``t`` = hours of the window):
     x[t]   load adjustment, a fraction of d_t, -a <= x_t <= a
     z[t]   binary indicator of an adjusted hour
 
-E_t = (1 + x_t) d_t e_t (Eq. 2) is a linear expression of x_t, not a separate variable. The objective
-is Eq. 1 without its constant term sum_t d_t e_t, which does not change the optimum (see
-formulation.md, conventions). Emissions are in tonnes: d (MWh) · e (kg/MWh) / 1000.
+E_t = (1 + x_t) d_t e_t / 1000 (Eq. 2, in tonnes: d in MWh, e in kg/MWh) is a linear expression of
+x_t, not a separate variable. The objective is Eq. 1 without its constant term sum_t d_t e_t / 1000,
+which does not change the optimum (see formulation.md, conventions).
 """
 
 from __future__ import annotations
@@ -29,6 +29,8 @@ class ModelOptions:
     """Options of the model build.
 
     big_m: M of Eqs. 6-7. None (default) uses M = a, the smallest value that is valid because |x_t| <= a.
+    With a larger M the model also keeps the linking with a (|x_t| <= a z_t), so the optimum does not
+    depend on M.
     """
 
     big_m: Optional[float] = None
@@ -88,4 +90,9 @@ def build_window_model(data: ModelData, label: str, options: Optional[ModelOptio
     # tolerance applies on the scale of z.
     m.add_constraints(z - x / big_m >= 0, name="eq6_indicator_up")        # z >= x / M
     m.add_constraints(z + x / big_m >= 0, name="eq7_indicator_down")      # z >= -x / M
+    if big_m > a:
+        # the same linking with the tightest valid constant: |x_t| <= a z_t (implied by Eqs. 6-7 for
+        # binary z; kept so that a large M cannot let small adjustments slip through solver tolerances)
+        m.add_constraints(z - x / a >= 0, name="indicator_link_up")
+        m.add_constraints(z + x / a >= 0, name="indicator_link_down")
     return WindowModel(label=label, hours=idx, model=m, data=data, big_m=big_m)

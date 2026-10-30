@@ -106,6 +106,8 @@ def synthetic_raw_records(region: RegionData, seed: int = 0, gap_share: float = 
     zero = rng.choice(np.arange(1, n - 1), size=max(1, int(gap_share * n / 2)), replace=False)
     df.loc[zero, RAW_COLUMNS["demand"]] = 0.0
     if dropped_rows:
-        first = int(rng.integers(1, n - dropped_rows - 1))
+        if n < dropped_rows + 2:
+            raise ValueError(f"need at least {dropped_rows + 2} hours to drop {dropped_rows} interior rows")
+        first = int(rng.integers(1, n - dropped_rows))                    # keeps the first and last rows
         df = df.drop(index=range(first, first + dropped_rows)).reset_index(drop=True)
     return df

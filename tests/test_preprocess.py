@@ -59,6 +59,13 @@ def test_complete_hours_rejects_repeats_and_sub_hourly_records():
     edges = pd.DataFrame({"time": t[1:3], "v": [1.0, 2.0]})
     out, added = complete_hours(edges, "time", start=t[0], end=t[3] + pd.Timedelta(hours=1))
     assert added == 2 and len(out) == 4 and out["v"].isna().sum() == 2
+    four = pd.DataFrame({"time": t, "v": [0.0, 1.0, 2.0, 3.0]})
+    out, added = complete_hours(four, "time", end=t[3] + pd.Timedelta(minutes=30))   # [.., 03:30) keeps 03:00
+    assert added == 0 and len(out) == 4 and out["v"].tolist() == [0.0, 1.0, 2.0, 3.0]
+    out, added = complete_hours(four.iloc[::-1], "time")                            # unsorted input
+    assert added == 0 and out["time"].is_monotonic_increasing
+    with pytest.raises(ValueError, match="no whole hour"):
+        complete_hours(four, "time", start=t[0] + pd.Timedelta(minutes=10), end=t[0] + pd.Timedelta(minutes=50))
 
 
 def test_region_from_records_refuses_long_gaps(week):
@@ -74,3 +81,11 @@ def test_period_selection_and_missing_columns(week):
     assert region.hours == 48
     with pytest.raises(ValueError, match="lack columns"):
         region_from_records("Mixed", raw.drop(columns=[EIA_COLUMNS["wind"]]))
+
+
+def test_synthetic_raw_records_on_short_inputs(week):
+    short = week.slice("2025-06-02 00:00", "2025-06-02 04:00")
+    raw = synthetic_raw_records(short, seed=0)
+    assert len(raw) == 2                                                             # first and last row kept
+    with pytest.raises(ValueError, match="need at least"):
+        synthetic_raw_records(short, dropped_rows=3)
