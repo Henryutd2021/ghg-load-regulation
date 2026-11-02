@@ -1,5 +1,7 @@
 # GHG load-regulation framework: re-timing electricity demand by real-time emission intensity
 
+Author: [Honglin Li](https://henryutd2021.github.io/)
+
 A documented, runnable implementation of the demand-side load-regulation framework in:
 
 > Honglin Li, Gulai Shen, Soroush Senemmar, Ali Mehmani and Jie Zhang. **Real-time greenhouse gas emission intensity informed demand-side load regulation for power grid decarbonization.** *Cell Reports Sustainability* 2 (2025) 100367. [doi:10.1016/j.crsus.2025.100367](https://doi.org/10.1016/j.crsus.2025.100367)
